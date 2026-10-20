@@ -7,6 +7,10 @@ remote machine so you can forward them to localhost manually or automatically.
 It is meant to feel like VS Code's automatic port forwarding without requiring
 VS Code.
 
+Maintained at [YanxiChen-gh/autoport](https://github.com/YanxiChen-gh/autoport),
+based on [Havnevej/autoport](https://github.com/Havnevej/autoport) at
+`a7a2b2e9ab4d0ed3f9de864338d80dbd644803a5`. The original MIT license is preserved.
+
 ## Features
 
 - Discovers remote listening TCP ports with `ss` or `netstat`.
@@ -49,36 +53,41 @@ services, enabled auto-forwarding, and successfully forwarded `localhost:3000`.
 
 ## Install
 
-Prebuilt Linux binaries are attached to each GitHub Release.
+Prebuilt Linux and macOS binaries for x86_64 and ARM64 are attached to each
+GitHub Release.
 
-Quick install for Linux:
+Quick install for Linux or macOS:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/Havnevej/autoport/main/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/YanxiChen-gh/autoport/main/install.sh | sh
 ```
 
 Set `BINDIR` to choose another install directory:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/Havnevej/autoport/main/install.sh | BINDIR=/usr/local/bin sh
+curl -fsSL https://raw.githubusercontent.com/YanxiChen-gh/autoport/main/install.sh | BINDIR=/usr/local/bin sh
 ```
 
 For x86_64 Linux:
 
 ```sh
-curl -LO https://github.com/Havnevej/autoport/releases/latest/download/autoport-linux-x86_64.tar.gz
+curl -LO https://github.com/YanxiChen-gh/autoport/releases/latest/download/autoport-linux-x86_64.tar.gz
 tar -xzf autoport-linux-x86_64.tar.gz
 install -m 0755 autoport-linux-x86_64/autoport ~/.local/bin/autoport
 ```
 
-For ARM64 Linux, use `autoport-linux-aarch64.tar.gz` instead.
+For ARM64 Linux, use `autoport-linux-aarch64.tar.gz` instead. For macOS, use
+`autoport-macos-aarch64.tar.gz` on Apple Silicon or
+`autoport-macos-x86_64.tar.gz` on Intel.
 
 To verify a download:
 
 ```sh
-curl -LO https://github.com/Havnevej/autoport/releases/latest/download/SHA256SUMS
+curl -LO https://github.com/YanxiChen-gh/autoport/releases/latest/download/SHA256SUMS
 sha256sum -c SHA256SUMS --ignore-missing
 ```
+
+On macOS, use `shasum -a 256 -c SHA256SUMS --ignore-missing`.
 
 From the repository:
 
@@ -105,10 +114,10 @@ destination with `BINDIR`:
 make install BINDIR=/usr/local/bin
 ```
 
-Once the crate is published, install it with:
+To install this repository directly with Cargo:
 
 ```sh
-cargo install autoport
+cargo install --git https://github.com/YanxiChen-gh/autoport --locked
 ```
 
 ## Usage
@@ -202,15 +211,14 @@ push to `main` and on pull requests.
 
 To publish a new release:
 
-1. Bump `version` in `Cargo.toml`.
-2. Add a matching section to `CHANGELOG.md`.
-3. Commit and push the change to `main`.
-4. Create and push a matching tag, for example `git tag v0.2.0 && git push origin v0.2.0`.
+1. Bump `version` in `Cargo.toml` and run `cargo check` to regenerate `Cargo.lock`.
+2. Commit and push the change to `main`.
+3. Create and push a matching tag, for example `git tag v0.2.0 && git push origin v0.2.0`.
 
-The release workflow verifies that the tag matches `Cargo.toml`, builds static
-Linux binaries for `x86_64` and `aarch64`, creates release notes from
-`CHANGELOG.md`, and uploads the tarballs plus `SHA256SUMS` to the GitHub
-Release.
+The release workflow verifies that the tag matches `Cargo.toml`, builds Linux
+and macOS binaries for `x86_64` and `aarch64`, generates GitHub release notes,
+and publishes the tarballs plus `SHA256SUMS`. The imported `CHANGELOG.md`
+preserves upstream release history.
 
 The release workflow can also be run manually with an existing tag to rebuild or
 backfill release assets.

@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: "Existing tag to build, for example v0.1.0"
+        description: "Existing tag to build, for example v0.2.0"
         required: true
         type: string
 
@@ -20,18 +20,25 @@ env:
   RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.tag || github.ref_name }}
 
 jobs:
-  build-linux:
+  build:
     name: Build ${{ matrix.package }}
-    runs-on: ubuntu-latest
-
+    runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
       matrix:
         include:
           - target: x86_64-unknown-linux-musl
             package: autoport-linux-x86_64
+            runner: ubuntu-latest
           - target: aarch64-unknown-linux-musl
             package: autoport-linux-aarch64
+            runner: ubuntu-latest
+          - target: x86_64-apple-darwin
+            package: autoport-macos-x86_64
+            runner: macos-15-intel
+          - target: aarch64-apple-darwin
+            package: autoport-macos-aarch64
+            runner: macos-15
 
     steps:
       - name: Checkout release tag
@@ -41,8 +48,11 @@ jobs:
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
 
       - name: Install cross
+        if: runner.os == 'Linux'
         uses: taiki-e/install-action@v2
         with:
           tool: cross
@@ -62,16 +72,33 @@ jobs:
           fi
 
       - name: Build release binary
-        run: cross build --release --locked --target "${{ matrix.target }}"
+        env:
+          TARGET: ${{ matrix.target }}
+        run: |
+          if [ "$RUNNER_OS" = Linux ]; then
+            cross build --release --locked --target "$TARGET"
+          else
+            cargo build --release --locked --target "$TARGET"
+          fi
+
+      - name: Exercise macOS binary and tests
+        if: runner.os == 'macOS'
+        env:
+          TARGET: ${{ matrix.target }}
+        run: |
+          "target/$TARGET/release/autoport" --help
+          cargo test --locked --target "$TARGET"
 
       - name: Package binary
+        env:
+          PACKAGE: ${{ matrix.package }}
+          TARGET: ${{ matrix.target }}
         run: |
-          package="${{ matrix.package }}"
-          mkdir -p "dist/$package"
-          cp "target/${{ matrix.target }}/release/autoport" "dist/$package/autoport"
-          chmod 0755 "dist/$package/autoport"
-          cp README.md LICENSE "dist/$package/"
-          tar -C dist -czf "dist/$package.tar.gz" "$package"
+          mkdir -p "dist/$PACKAGE"
+          cp "target/$TARGET/release/autoport" "dist/$PACKAGE/autoport"
+          chmod 0755 "dist/$PACKAGE/autoport"
+          cp README.md LICENSE "dist/$PACKAGE/"
+          tar -C dist -czf "dist/$PACKAGE.tar.gz" "$PACKAGE"
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v7
@@ -83,10 +110,9 @@ jobs:
   publish:
     name: Publish GitHub Release
     runs-on: ubuntu-latest
-    needs: build-linux
-
+    needs: build
     steps:
-      - name: Checkout release notes source
+      - name: Checkout release tag
         uses: actions/checkout@v6
         with:
           ref: ${{ env.RELEASE_TAG }}
@@ -101,74 +127,43 @@ jobs:
         working-directory: dist
         run: sha256sum *.tar.gz > SHA256SUMS
 
-      - name: Build release notes
+      - name: Generate release notes
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          version="${RELEASE_TAG#v}"
-          notes="dist/release-notes.md"
-          from_changelog=0
-
-          if [ -f CHANGELOG.md ]; then
-            awk -v version="$version" '
-              /^## / {
-                if (found) exit
-                if ($0 ~ "^## \\[?" version "\\]?([[:space:]-]|$)") found = 1
-              }
-              found { print }
-            ' CHANGELOG.md > "$notes"
-          fi
-
-          if [ -s "$notes" ]; then
-            from_changelog=1
-          elif gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --json body --jq .body > "$notes" 2>/dev/null && [ -s "$notes" ]; then
-            echo "Reusing existing release notes because no CHANGELOG.md entry exists for $RELEASE_TAG."
-          else
-            echo "CHANGELOG.md must contain a section for $RELEASE_TAG before release." >&2
-            exit 1
-          fi
-
-          if [ "$from_changelog" = 1 ]; then
-            cat >> "$notes" <<'EOF'
+          gh api "repos/$GITHUB_REPOSITORY/releases/generate-notes" \
+            -f tag_name="$RELEASE_TAG" --jq .body > dist/release-notes.md
+          cat >> dist/release-notes.md <<'EOF'
 
           ## Install
 
+          Linux and macOS (Intel or Apple Silicon):
+
           ```sh
-          curl -fsSL https://raw.githubusercontent.com/Havnevej/autoport/main/install.sh | sh
+          curl -fsSL https://raw.githubusercontent.com/YanxiChen-gh/autoport/main/install.sh | sh
           ```
 
           ## Downloads
 
           - `autoport-linux-x86_64.tar.gz` - Linux x86_64
-          - `autoport-linux-aarch64.tar.gz` - Linux ARM64/aarch64
-          - `SHA256SUMS` - SHA-256 checksums for the release assets
-
-          ## Verify
-
-          ```sh
-          curl -LO https://github.com/Havnevej/autoport/releases/latest/download/SHA256SUMS
-          sha256sum -c SHA256SUMS --ignore-missing
-          ```
+          - `autoport-linux-aarch64.tar.gz` - Linux ARM64
+          - `autoport-macos-x86_64.tar.gz` - macOS Intel
+          - `autoport-macos-aarch64.tar.gz` - macOS Apple Silicon
+          - `SHA256SUMS` - SHA-256 checksums
           EOF
-          fi
 
       - name: Publish GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           if gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            gh release edit "$RELEASE_TAG" \
-              --repo "$GITHUB_REPOSITORY" \
-              --title "autoport $RELEASE_TAG" \
-              --notes-file dist/release-notes.md
+            gh release edit "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" \
+              --title "autoport $RELEASE_TAG" --notes-file dist/release-notes.md
           else
-            gh release create "$RELEASE_TAG" \
-              --repo "$GITHUB_REPOSITORY" \
-              --title "autoport $RELEASE_TAG" \
-              --notes-file dist/release-notes.md
+            gh release create "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" \
+              --title "autoport $RELEASE_TAG" --notes-file dist/release-notes.md \
+              --draft --verify-tag
           fi
-
-          gh release upload "$RELEASE_TAG" \
-            dist/*.tar.gz dist/SHA256SUMS \
-            --repo "$GITHUB_REPOSITORY" \
-            --clobber
+          gh release upload "$RELEASE_TAG" dist/*.tar.gz dist/SHA256SUMS \
+            --repo "$GITHUB_REPOSITORY" --clobber
+          gh release edit "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --draft=false --latest

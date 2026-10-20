@@ -5,8 +5,8 @@ edition = "2021"
 description = "Dynamic SSH port forwarder with a TUI - VS Code-style auto port forwarding"
 license = "MIT"
 readme = "README.md"
-repository = "https://github.com/Havnevej/autoport"
-documentation = "https://docs.rs/autoport"
+repository = "https://github.com/YanxiChen-gh/autoport"
+documentation = "https://github.com/YanxiChen-gh/autoport#readme"
 keywords = ["ssh", "port-forward", "tui", "tunnel"]
 categories = ["command-line-utilities", "development-tools", "network-programming"]
 
