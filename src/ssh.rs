@@ -5,7 +5,8 @@
 //! reuse the user's existing `~/.ssh/config`, keys, agent and known_hosts for
 //! free - exactly like VS Code's remote tunnelling does under the hood.
 
-use std::collections::HashSet;
+use std::collections::{hash_map::DefaultHasher, HashSet};
+use std::hash::{Hash, Hasher};
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
 
@@ -37,11 +38,10 @@ impl Ssh {
         let mut socket = std::env::var_os("XDG_RUNTIME_DIR")
             .map(PathBuf::from)
             .unwrap_or_else(std::env::temp_dir);
-        let safe: String = host
-            .chars()
-            .map(|c| if c.is_ascii_alphanumeric() { c } else { '_' })
-            .collect();
-        socket.push(format!("autoport-{safe}.sock"));
+        // OpenSSH adds a 17-byte temporary suffix when creating the control socket.
+        let mut hash = DefaultHasher::new();
+        host.hash(&mut hash);
+        socket.push(format!("ap-{:016x}", hash.finish()));
         Ssh {
             host,
             socket,
@@ -260,6 +260,15 @@ mod tests {
 
     fn ssh() -> Ssh {
         Ssh::new("test".into(), 1024, 65535, false)
+    }
+
+    #[test]
+    fn control_sockets_preserve_host_identity() {
+        let first = Ssh::new("dev-one".into(), 1024, 65535, false);
+        let same = Ssh::new("dev-one".into(), 1024, 65535, false);
+        let different = Ssh::new("dev.one".into(), 1024, 65535, false);
+        assert_eq!(first.socket, same.socket);
+        assert_ne!(first.socket, different.socket);
     }
 
     #[test]

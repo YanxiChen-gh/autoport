@@ -88,6 +88,7 @@ jobs:
         run: |
           "target/$TARGET/release/autoport" --help
           cargo test --locked --target "$TARGET"
+          python3 tests/ssh-smoke.py "target/$TARGET/release/autoport"
 
       - name: Package binary
         env:

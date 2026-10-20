@@ -171,6 +171,9 @@ q, Esc         quit
 ssh -f -N -M -S <socket> <host>
 ```
 
+The control socket has a compact per-host name so long SSH aliases fit within
+Unix socket path limits, including OpenSSH's temporary creation suffix.
+
 It then polls the remote host for listening TCP sockets and uses OpenSSH control
 commands to add or remove forwards dynamically:
 
@@ -214,8 +217,10 @@ cleans them up on exit.
 
 ## Releases
 
-CI runs formatting, Clippy, tests, a release build, and crate packaging on every
-push to `main` and on pull requests.
+CI runs formatting, Clippy, tests, a release build, and crate packaging on Linux
+and both macOS architectures on every push to `main` and on pull requests.
+A real SSH smoke check starts the TUI with a long host alias and temporary
+directory, then verifies master startup and a compressed reconnect.
 
 To publish a new release:
 

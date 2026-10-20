@@ -15,8 +15,12 @@ env:
 
 jobs:
   check:
-    name: Check
-    runs-on: ubuntu-latest
+    name: Check (${{ matrix.runner }})
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-latest, macos-15, macos-15-intel]
 
     steps:
       - name: Checkout
@@ -41,6 +45,9 @@ jobs:
 
       - name: Build release binary
         run: cargo build --release --locked
+
+      - name: Exercise SSH master and reconnect
+        run: python3 tests/ssh-smoke.py target/release/autoport
 
       - name: Verify crate package
         run: cargo package --locked
