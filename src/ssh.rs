@@ -24,6 +24,7 @@ pub struct Ssh {
     socket: PathBuf,
     min_port: u16,
     max_port: u16,
+    compression: bool,
 }
 
 /// Remote command used to enumerate listening TCP sockets. Falls back from the
@@ -32,7 +33,7 @@ const PORT_CMD: &str =
     "ss -H -t -l -n -p 2>/dev/null || ss -H -t -l -n 2>/dev/null || netstat -tln 2>/dev/null";
 
 impl Ssh {
-    pub fn new(host: String, min_port: u16, max_port: u16) -> Self {
+    pub fn new(host: String, min_port: u16, max_port: u16, compression: bool) -> Self {
         let mut socket = std::env::var_os("XDG_RUNTIME_DIR")
             .map(PathBuf::from)
             .unwrap_or_else(std::env::temp_dir);
@@ -46,6 +47,7 @@ impl Ssh {
             socket,
             min_port,
             max_port,
+            compression,
         }
     }
 
@@ -77,6 +79,9 @@ impl Ssh {
             .arg("ServerAliveCountMax=3")
             .arg("-o")
             .arg("ExitOnForwardFailure=yes");
+        if self.compression {
+            c.arg("-C");
+        }
         if !interactive {
             c.arg("-o").arg("BatchMode=yes");
         }
@@ -254,7 +259,7 @@ mod tests {
     use super::*;
 
     fn ssh() -> Ssh {
-        Ssh::new("test".into(), 1024, 65535)
+        Ssh::new("test".into(), 1024, 65535, false)
     }
 
     #[test]
@@ -315,7 +320,7 @@ short line";
 
     #[test]
     fn port_range_is_respected() {
-        let s = Ssh::new("t".into(), 8000, 8999);
+        let s = Ssh::new("t".into(), 8000, 8999, false);
         let out = "\
 LISTEN 0 1 0.0.0.0:80 0.0.0.0:*
 LISTEN 0 1 0.0.0.0:8080 0.0.0.0:*

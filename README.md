@@ -17,6 +17,7 @@ based on [Havnevej/autoport](https://github.com/Havnevej/autoport) at
 - Uses OpenSSH directly, so your existing `~/.ssh/config`, keys, agent, and
   known hosts continue to work.
 - Reuses one SSH ControlMaster and adds or removes `-L` forwards at runtime.
+- Enables SSH compression per connection with `-C` or `--compression`.
 - Supports manual forwarding or auto-forwarding every discovered port.
 - Binds local listeners to `127.0.0.1` only.
 - Handles IPv4 and IPv6 loopback services, including tools that bind to `::1`.
@@ -129,6 +130,7 @@ autoport [USER@]HOST [options]
 Options:
 
 ```text
+-C, --compression  enable SSH compression for this connection
 --interval SECS   how often to rescan remote ports (default 4)
 --min-port N      lowest remote port to show (default 1024)
 --max-port N      highest remote port to show (default 65535)
@@ -139,9 +141,15 @@ Examples:
 
 ```sh
 autoport devbox
+autoport devbox --compression
 autoport user@example.com --min-port 3000 --max-port 9999
 autoport staging --interval 2
 ```
+
+Use `-C` or `--compression` for large, compressible responses over constrained
+connections. The option applies to the SSH master and automatic reconnects,
+regardless of the target host, without changing `~/.ssh/config`. Without the
+option, OpenSSH uses its existing compression configuration.
 
 ## Keys
 

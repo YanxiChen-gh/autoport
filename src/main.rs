@@ -34,6 +34,7 @@ struct Args {
     interval: u64,
     min_port: u16,
     max_port: u16,
+    compression: bool,
 }
 
 fn parse_args() -> Args {
@@ -41,11 +42,13 @@ fn parse_args() -> Args {
     let mut interval = 4u64;
     let mut min_port = 1024u16;
     let mut max_port = 65535u16;
+    let mut compression = false;
 
     let mut it = std::env::args().skip(1);
     while let Some(a) = it.next() {
         match a.as_str() {
             "-h" | "--help" => usage(0),
+            "-C" | "--compression" => compression = true,
             "--interval" => interval = next_num(&mut it),
             "--min-port" => min_port = next_num(&mut it),
             "--max-port" => max_port = next_num(&mut it),
@@ -63,6 +66,7 @@ fn parse_args() -> Args {
         interval: interval.max(1),
         min_port: min_port.max(1),
         max_port,
+        compression,
     }
 }
 
@@ -79,6 +83,7 @@ USAGE:
     autoport [USER@]HOST [options]
 
 OPTIONS:
+    -C, --compression  enable SSH compression for this connection
     --interval SECS   how often to rescan remote ports (default 4)
     --min-port N      lowest remote port to show (default 1024)
     --max-port N      highest remote port to show (default 65535)
@@ -101,7 +106,12 @@ HOST is anything your ssh understands (uses ~/.ssh/config, keys and agent).";
 
 fn main() {
     let args = parse_args();
-    let ssh = Ssh::new(args.host.clone(), args.min_port, args.max_port);
+    let ssh = Ssh::new(
+        args.host.clone(),
+        args.min_port,
+        args.max_port,
+        args.compression,
+    );
 
     // Connect BEFORE touching the terminal so any password / passphrase prompt
     // shows up normally rather than fighting the TUI for stdin.

@@ -1,6 +1,6 @@
 [package]
 name = "autoport"
-version = "0.1.1"
+version = "0.2.0"
 edition = "2021"
 description = "Dynamic SSH port forwarder with a TUI - VS Code-style auto port forwarding"
 license = "MIT"
