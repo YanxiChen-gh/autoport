@@ -77,7 +77,7 @@ Compression yes
             daemon = subprocess.Popen(
                 [sshd, "-D", "-e", "-f", str(server_config)], stderr=server_log
             )
-            child = terminal = None
+            child = terminal = child_status = None
             try:
                 deadline = time.monotonic() + 10
                 while True:
@@ -104,6 +104,14 @@ Compression yes
                 fcntl.ioctl(terminal, termios.TIOCSWINSZ, struct.pack("HHHH", 32, 140, 0, 0))
                 output = bytearray()
 
+                def child_exited():
+                    nonlocal child_status
+                    if child_status is None:
+                        exited, status = os.waitpid(child, os.WNOHANG)
+                        if exited:
+                            child_status = status
+                    return child_status is not None
+
                 def wait_until(predicate):
                     deadline = time.monotonic() + 20
                     while time.monotonic() < deadline:
@@ -118,7 +126,7 @@ Compression yes
                         result = predicate()
                         if result:
                             return result
-                        if os.waitid(os.P_PID, child, os.WEXITED | os.WNOHANG | os.WNOWAIT):
+                        if child_exited():
                             raise RuntimeError(output.decode(errors="replace") + log.read_text())
                         time.sleep(0.05)
                     raise TimeoutError(output.decode(errors="replace"))
@@ -150,13 +158,13 @@ Compression yes
                 check = run(ssh, "-F", str(client_config), "-S", str(control_socket), "-O", "check", alias)
                 print(check.stderr.strip(), flush=True)
                 os.write(terminal, b"q")
-                wait_until(lambda: os.waitid(os.P_PID, child, os.WEXITED | os.WNOHANG | os.WNOWAIT))
-                _, status = os.waitpid(child, 0)
+                wait_until(child_exited)
+                status = child_status
                 child = None
                 assert os.waitstatus_to_exitcode(status) == 0
                 print("Long-path SSH master and compressed reconnect passed.", flush=True)
             finally:
-                if child is not None:
+                if child is not None and not child_exited():
                     os.kill(child, signal.SIGTERM)
                     os.waitpid(child, 0)
                 for control_socket in runtime.iterdir():
